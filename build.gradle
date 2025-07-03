@@ -1,0 +1,80 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:3.+'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+
+version = '0.0.1'
+group = 'com.cyojkoy.buildshapes'
+archivesBaseName = 'buildshapes'
+
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+minecraft {
+    mappings channel: 'snapshot', version: '20171003-1.12'
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+        server {
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.minecraftforge.net/' }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2860'
+    // ASM依赖（适用于1.12.2 Forge及ASM 5.x）
+    implementation "org.ow2.asm:asm:5.2"
+    implementation "org.ow2.asm:asm-commons:5.2"
+}
+
+jar {
+    manifest {
+        attributes([
+            "Specification-Title": "BuildShapes",
+            "Specification-Vendor": " ",
+            "Specification-Version": "1",
+            "Implementation-Title": "BuildShapes",
+            "Implementation-Version": "${version}",
+            "Implementation-Vendor" :" ",
+            "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+        ])
+    }
+}
+
+// Forge 1.12.2 coremod必须reobfJar
+jar.finalizedBy('reobfJar')
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven { url = "https://maven.aliyun.com/repository/public" }
+        maven { url = "https://maven.minecraftforge.net" }
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}
