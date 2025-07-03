@@ -1,13 +1,14 @@
 package com.cyojkoy.buildshapes;
 
+import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderGlobal;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
@@ -24,21 +25,47 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.lwjgl.opengl.GL11;
+
 @Mod(modid = BuildShapes.MODID, name = BuildShapes.NAME, version = BuildShapes.VERSION, clientSideOnly = true)
 public class BuildShapes {
     public static final String MODID = "buildshapes";
     public static final String NAME = "Build Shapes";
     public static final String VERSION = "1.0.0";
+    // 添加三角函数查找表
+    private static final int LOOKUP_PRECISION = 1000;
+    private static final double[] sinTable = new double[LOOKUP_PRECISION + 1];
+    private static final double[] sqrtTable = new double[LOOKUP_PRECISION + 1];
 
+    static {
+        // 初始化三角函数查找表
+        for (int i = 0; i <= LOOKUP_PRECISION; i++) {
+            double x = i * Math.PI / (2 * LOOKUP_PRECISION);
+            sinTable[i] = Math.sin(x);
+        }
+        
+        // 初始化平方根查找表
+        for (int i = 0; i <= LOOKUP_PRECISION; i++) {
+            sqrtTable[i] = Math.sqrt(i / (double)LOOKUP_PRECISION);
+        }
+    }
+    
     // 添加方向枚举
     private enum Orientation {
         HORIZONTAL, // XZ平面
         VERTICAL_X, // XY平面
         VERTICAL_Z  // ZY平面
     }
+    
+    // 增加显示模式的枚举
+    private enum DisplayMode {
+        ALL,           // 显示所有层
+        CURRENT_LAYER, // 显示当前层
+        BELOW_LAYER    // 显示下方一层
+    }
 
+    private static DisplayMode currentDisplayMode = DisplayMode.ALL;
     private static Set<BlockPos> previewBlocks = new HashSet<>();
-    private static boolean showAllLayers = true;
     private static BlockPos centerPos;
     private static Orientation currentOrientation = Orientation.HORIZONTAL;
 
@@ -61,9 +88,16 @@ public class BuildShapes {
         double playerY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.getPartialTicks();
         double playerZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.getPartialTicks();
 
+        // 创建视锥体检查器
+        net.minecraft.client.renderer.culling.Frustum frustum = new net.minecraft.client.renderer.culling.Frustum();
+        frustum.setPosition(playerX, playerY, playerZ);
+
+        // 启用深度测试，这样方块会被正确遮挡
+        GlStateManager.enableDepth();
+        GlStateManager.depthFunc(GL11.GL_LEQUAL);
+        
+        // 渲染设置
         GlStateManager.disableTexture2D();
-        GlStateManager.disableLighting();
-        GlStateManager.disableDepth();
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(
             GlStateManager.SourceFactor.SRC_ALPHA,
@@ -72,34 +106,135 @@ public class BuildShapes {
             GlStateManager.DestFactor.ZERO
         );
 
-        // 绘制形状预览
+        // 开始使用Tessellator进行渲染
+        Tessellator tessellator = Tessellator.getInstance();
+        BufferBuilder buffer = tessellator.getBuffer();
+        
+        // 渲染预览方块
+        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
+        
         for (BlockPos pos : previewBlocks) {
-            if ((showAllLayers || pos.getY() == player.getPosition().getY()) && 
-                world.isAirBlock(pos)) {
+            // 根据显示模式判断是否渲染
+        	boolean shouldRender;
+        	switch (currentDisplayMode) {
+        	    case ALL:
+        	        shouldRender = true;
+        	        break;
+        	    case CURRENT_LAYER:
+        	        shouldRender = pos.getY() == player.getPosition().getY();
+        	        break;
+        	    case BELOW_LAYER:
+        	        shouldRender = pos.getY() == player.getPosition().getY() - 1;
+        	        break;
+        	    default:
+        	        shouldRender = true;
+        	        break;
+        	}
+            
+            if (shouldRender && world.isAirBlock(pos)) {
+                // 计算相对位置
                 double x = pos.getX() - playerX;
                 double y = pos.getY() - playerY;
                 double z = pos.getZ() - playerZ;
 
-                AxisAlignedBB box = new AxisAlignedBB(x, y, z, x + 1, y + 1, z + 1);
-                RenderGlobal.drawSelectionBoundingBox(box, 0.0F, 1.0F, 1.0F, 0.4F);
+                // 检查是否在视野内
+                if (frustum.isBoxInFrustum(
+                    pos.getX() - 0.1, pos.getY() - 0.1, pos.getZ() - 0.1,
+                    pos.getX() + 0.1, pos.getY() + 0.1, pos.getZ() + 0.1)) {
+                    
+                    // 渲染实心的蓝色小方块
+                    // 前面
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+
+                    // 后面
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+
+                    // 顶面
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+
+                    // 底面
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+
+                    // 右面
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.6, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+
+                    // 左面
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.4, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.6).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                    buffer.pos(x + 0.4, y + 0.6, z + 0.4).color(0.0f, 0.5f, 1.0f, 0.8f).endVertex();
+                }
             }
         }
 
-        // 绘制中心点（红色）
+        // 渲染中心点
         double centerX = centerPos.getX() - playerX;
         double centerY = centerPos.getY() - playerY;
         double centerZ = centerPos.getZ() - playerZ;
         
-        AxisAlignedBB centerBox = new AxisAlignedBB(
-            centerX + 0.25, centerY + 0.25, centerZ + 0.25,
-            centerX + 0.75, centerY + 0.75, centerZ + 0.75
-        );
-        RenderGlobal.drawSelectionBoundingBox(centerBox, 1.0F, 0.0F, 0.0F, 1.0F);
+        if (frustum.isBoxInFrustum(
+            centerPos.getX() - 0.05, centerPos.getY() - 0.05, centerPos.getZ() - 0.05,
+            centerPos.getX() + 0.05, centerPos.getY() + 0.05, centerPos.getZ() + 0.05)) {
+            
+            // 渲染实心的红色小方块
+            // 前面
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
 
-        GlStateManager.enableTexture2D();
-        GlStateManager.enableLighting();
-        GlStateManager.enableDepth();
+            // 后面
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+
+            // 顶面
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+
+            // 底面
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+
+            // 右面
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.55, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+
+            // 左面
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.45, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.55).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+            buffer.pos(centerX + 0.45, centerY + 0.55, centerZ + 0.45).color(1.0f, 0.0f, 0.0f, 1.0f).endVertex();
+        }
+
+        // 完成渲染
+        tessellator.draw();
+
+        // 恢复GL状态
         GlStateManager.disableBlend();
+        GlStateManager.enableTexture2D();
     }
 
     private static void generateCircle(BlockPos center, int radius) {
@@ -344,6 +479,62 @@ public class BuildShapes {
         previewBlocks.add(new BlockPos(center.getX(), center.getY() - y, center.getZ() - x));
     }
 
+    // 优化后的椭球体生成方法
+    private static void generateEllipsoid(BlockPos center, int radiusX, int radiusY, int radiusZ) {
+    previewBlocks.clear();
+    
+    // 验证半径范围
+    if (radiusX <= 0 || radiusY <= 0 || radiusZ <= 0) {
+        return;
+    }
+    
+    // 使用单线程替代多线程（避免线程安全问题）
+    Set<BlockPos> points = new HashSet<>();
+    for (int i = -radiusX; i <= radiusX; i++) {
+        for (int j = -radiusY; j <= radiusY; j++) {
+            for (int k = -radiusZ; k <= radiusZ; k++) {
+                // 调整顶点位置计算，使端点缩进一格
+                double adjustedI = i + (i > 0 ? -0.5 : (i < 0 ? 0.5 : 0));
+                double adjustedJ = j + (j > 0 ? -0.5 : (j < 0 ? 0.5 : 0));
+                double adjustedK = k + (k > 0 ? -0.5 : (k < 0 ? 0.5 : 0));
+                
+                double termX = Math.pow(adjustedI, 2) / Math.pow(radiusX, 2);
+                double termY = Math.pow(adjustedJ, 2) / Math.pow(radiusY, 2);
+                double termZ = Math.pow(adjustedK, 2) / Math.pow(radiusZ, 2);
+                
+                if (termX + termY + termZ <= 1.0) {
+                    points.add(new BlockPos(
+                        center.getX() + i,
+                        center.getY() + j,
+                        center.getZ() + k
+                    ));
+                }
+            }
+        }
+    }
+    
+    // 优化：只保留表面点
+    Set<BlockPos> surfacePoints = new HashSet<>();
+    for (BlockPos pos : points) {
+        boolean isSurface = false;
+        
+        // 检查六个方向是否有空缺
+        if (!points.contains(pos.east())) isSurface = true;
+        else if (!points.contains(pos.west())) isSurface = true;
+        else if (!points.contains(pos.up())) isSurface = true;
+        else if (!points.contains(pos.down())) isSurface = true;
+        else if (!points.contains(pos.north())) isSurface = true;
+        else if (!points.contains(pos.south())) isSurface = true;
+        
+        if (isSurface) {
+            surfacePoints.add(pos);
+        }
+    }
+    
+    previewBlocks.addAll(surfacePoints);
+    centerPos = center;
+}
+
     public static class ShapeCommand extends CommandBase {
         @Override
         public String getName() {
@@ -410,13 +601,29 @@ public class BuildShapes {
 
             if (args[0].equals("preview")) {
                 if (args.length < 2) {
-                    player.sendMessage(new TextComponentString("用法: /shape preview <all|layer>"));
+                    player.sendMessage(new TextComponentString(
+                        "用法: /shape preview <all|layer|below>"
+                    ));
                     return;
                 }
-                showAllLayers = args[1].equals("all");
+                switch (args[1].toLowerCase()) {
+                    case "all":
+                        currentDisplayMode = DisplayMode.ALL;
+                        break;
+                    case "layer":
+                        currentDisplayMode = DisplayMode.CURRENT_LAYER;
+                        break;
+                    case "below":
+                        currentDisplayMode = DisplayMode.BELOW_LAYER;
+                        break;
+                    default:
+                        player.sendMessage(new TextComponentString(
+                            "无效的预览模式！使用 all, layer 或 below"
+                        ));
+                        return;
+                }
                 player.sendMessage(new TextComponentString(
-                    TextFormatting.GREEN + "预览模式已设置为: " + 
-                    (showAllLayers ? "显示所有层" : "仅显示当前层")
+                    TextFormatting.GREEN + "预览模式已设置为: " + args[1]
                 ));
                 return;
             }
@@ -460,13 +667,26 @@ public class BuildShapes {
                         generateEllipse(pos, radiusX, radiusZ);
                         break;
 
+                    case "ellipsoid":
+                        if (args.length < 4) {
+                            player.sendMessage(new TextComponentString(
+                                "用法: /shape ellipsoid <X半径> <Y半径> <Z半径>"
+                            ));
+                            return;
+                        }
+                        int radiusX1 = Integer.parseInt(args[1]);
+                        int radiusY1 = Integer.parseInt(args[2]);
+                        int radiusZ1 = Integer.parseInt(args[3]);
+                        generateEllipsoid(pos, radiusX1, radiusY1, radiusZ1);
+                        break;
+
                     default:
                         sendHelpMessage(player);
                         return;
                 }
 
                 player.sendMessage(new TextComponentString(
-                    TextFormatting.GREEN + "形状预览已生成！使用 /shape preview <all|layer> 切换预览模式"
+                    TextFormatting.GREEN + "形状预览已生成！使用 /shape preview <all|layer|below> 切换预览模式"
                 ));
 
             } catch (NumberFormatException e) {
@@ -512,8 +732,15 @@ public class BuildShapes {
                         TextFormatting.GRAY + "  生成一个椭圆预览\n" +
                         TextFormatting.GRAY + "  - X半径：椭圆X轴方向的大小\n" +
                         TextFormatting.GRAY + "  - Z半径：椭圆Z轴方向的大小\n" +
-                        TextFormatting.GRAY + "  示例：/shape ellipse 10 5";
-                    break;
+                        TextFormatting.GRAY + "  示例：/shape ellipse 10 5\n\\n"+
+                        
+                        TextFormatting.WHITE + "/shape ellipsoid <X半径> <Y半径> <Z半径>\n" +
+                        TextFormatting.GRAY + "  生成一个椭圆体预览\n" +
+                        TextFormatting.GRAY + "  - X半径：椭圆体X轴方向的大小\n" +
+                        TextFormatting.GRAY + "  - Y半径：椭圆体Y轴方向的大小\n" +
+                        TextFormatting.GRAY + "  - Z半径：椭圆体Z轴方向的大小\n" +
+                        TextFormatting.GRAY + "  示例：/shape ellipsoid 10 8 6";
+                break;
 
                 case 2:
                     content = TextFormatting.YELLOW + "预览控制命令：\n" +
@@ -523,8 +750,12 @@ public class BuildShapes {
                         
                         TextFormatting.WHITE + "/shape preview layer\n" +
                         TextFormatting.GRAY + "  只显示当前所在高度层的预览\n" +
-                        TextFormatting.GRAY + "  适用于精确建造每一层\n\n" +
-                        
+                        TextFormatting.GRAY + "  适用于创造建造每一层\n\n" +
+
+                        TextFormatting.WHITE + "/shape preview below\n" +
+                        TextFormatting.GRAY + "  只显示脚下一层的预览\n" +
+                        TextFormatting.GRAY + "  适用于生存建造每一层\n\n" +
+
                         TextFormatting.WHITE + "/shape clear\n" +
                         TextFormatting.GRAY + "  清除所有预览效果";
                     break;
@@ -552,7 +783,8 @@ public class BuildShapes {
                 TextFormatting.GRAY + "/shape circle <半径>\n" +
                 TextFormatting.GRAY + "/shape sphere <半径>\n" +
                 TextFormatting.GRAY + "/shape ellipse <X半径> <Z半径>\n" +
-                TextFormatting.GRAY + "/shape preview <all|layer>\n" +
+                TextFormatting.GRAY + "/shape ellipsoid <X半径> <Y半径> <Z半径>\n" +
+                TextFormatting.GRAY + "/shape preview <all|layer|below>\n" +
                 TextFormatting.GRAY + "/shape orientation <方向>\n" +
                 TextFormatting.GRAY + "/shape clear\n\n" +
                 TextFormatting.YELLOW + "提示：使用 /shape help <页码> 查看详细说明"
