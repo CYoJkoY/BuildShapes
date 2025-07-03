@@ -1,9 +1,9 @@
 Manifest-Version: 1.0
 Implementation-Title: BuildShapes
-Implementation-Version: 0.0.1
+Implementation-Version: 0.0.2
 Specification-Vendor:  
 Specification-Title: BuildShapes
-Implementation-Timestamp: 2025-07-03T13:55:28+0800
+Implementation-Timestamp: 2025-07-03T15:18:29+0800
 Specification-Version: 1
 Implementation-Vendor:  
 
