@@ -56,7 +56,7 @@ public class BuildShapes {
         VERTICAL_X, // XY平面
         VERTICAL_Z  // ZY平面
     }
-    
+
     // 增加显示模式的枚举
     private enum DisplayMode {
         ALL,           // 显示所有层
@@ -380,7 +380,7 @@ public class BuildShapes {
         // Region 1
         p = Math.round(rz2 - (rx2 * radiusZ) + (0.25 * rx2));
         while (px < pz) {
-            addEllipsePointsHorizontal(center, x, z);
+        	addEllipsePoints(center, x, z, Orientation.HORIZONTAL);
             x++;
             px += twoRz2;
             if (p < 0) {
@@ -395,7 +395,7 @@ public class BuildShapes {
         // Region 2
         p = Math.round(rz2 * (x + 0.5) * (x + 0.5) + rx2 * (z - 1) * (z - 1) - rx2 * rz2);
         while (z >= 0) {
-            addEllipsePointsHorizontal(center, x, z);
+        	addEllipsePoints(center, x, z, Orientation.HORIZONTAL);
             z--;
             pz -= twoRx2;
             if (p > 0) {
@@ -406,13 +406,6 @@ public class BuildShapes {
                 p += rx2 - pz + px;
             }
         }
-    }
-
-    private static void addEllipsePointsHorizontal(BlockPos center, int x, int z) {
-        previewBlocks.add(new BlockPos(center.getX() + x, center.getY(), center.getZ() + z));
-        previewBlocks.add(new BlockPos(center.getX() - x, center.getY(), center.getZ() + z));
-        previewBlocks.add(new BlockPos(center.getX() + x, center.getY(), center.getZ() - z));
-        previewBlocks.add(new BlockPos(center.getX() - x, center.getY(), center.getZ() - z));
     }
 
     private static void generateEllipseVertical(BlockPos center, int radiusX, int radiusY, boolean isXPlane) {
@@ -430,9 +423,9 @@ public class BuildShapes {
         p = Math.round(ry2 - (rx2 * radiusY) + (0.25 * rx2));
         while (px < py) {
             if (isXPlane) {
-                addEllipsePointsVerticalX(center, x, y);
+            	addEllipsePoints(center, x, y, Orientation.VERTICAL_X);
             } else {
-                addEllipsePointsVerticalZ(center, x, y);
+            	addEllipsePoints(center, x, y, Orientation.VERTICAL_Z);
             }
             x++;
             px += twoRy2;
@@ -449,9 +442,9 @@ public class BuildShapes {
         p = Math.round(ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2);
         while (y >= 0) {
             if (isXPlane) {
-                addEllipsePointsVerticalX(center, x, y);
+            	addEllipsePoints(center, x, y, Orientation.VERTICAL_X);
             } else {
-                addEllipsePointsVerticalZ(center, x, y);
+            	addEllipsePoints(center, x, y, Orientation.VERTICAL_Z);
             }
             y--;
             py -= twoRx2;
@@ -465,18 +458,27 @@ public class BuildShapes {
         }
     }
 
-    private static void addEllipsePointsVerticalX(BlockPos center, int x, int y) {
-        previewBlocks.add(new BlockPos(center.getX() + x, center.getY() + y, center.getZ()));
-        previewBlocks.add(new BlockPos(center.getX() - x, center.getY() + y, center.getZ()));
-        previewBlocks.add(new BlockPos(center.getX() + x, center.getY() - y, center.getZ()));
-        previewBlocks.add(new BlockPos(center.getX() - x, center.getY() - y, center.getZ()));
-    }
-
-    private static void addEllipsePointsVerticalZ(BlockPos center, int x, int y) {
-        previewBlocks.add(new BlockPos(center.getX(), center.getY() + y, center.getZ() + x));
-        previewBlocks.add(new BlockPos(center.getX(), center.getY() + y, center.getZ() - x));
-        previewBlocks.add(new BlockPos(center.getX(), center.getY() - y, center.getZ() + x));
-        previewBlocks.add(new BlockPos(center.getX(), center.getY() - y, center.getZ() - x));
+    private static void addEllipsePoints(BlockPos center, int a, int b, Orientation orientation) {
+        switch (orientation) {
+            case HORIZONTAL:
+                previewBlocks.add(new BlockPos(center.getX() + a, center.getY(), center.getZ() + b));
+                previewBlocks.add(new BlockPos(center.getX() - a, center.getY(), center.getZ() + b));
+                previewBlocks.add(new BlockPos(center.getX() + a, center.getY(), center.getZ() - b));
+                previewBlocks.add(new BlockPos(center.getX() - a, center.getY(), center.getZ() - b));
+                break;
+            case VERTICAL_X:
+                previewBlocks.add(new BlockPos(center.getX() + a, center.getY() + b, center.getZ()));
+                previewBlocks.add(new BlockPos(center.getX() - a, center.getY() + b, center.getZ()));
+                previewBlocks.add(new BlockPos(center.getX() + a, center.getY() - b, center.getZ()));
+                previewBlocks.add(new BlockPos(center.getX() - a, center.getY() - b, center.getZ()));
+                break;
+            case VERTICAL_Z:
+                previewBlocks.add(new BlockPos(center.getX(), center.getY() + b, center.getZ() + a));
+                previewBlocks.add(new BlockPos(center.getX(), center.getY() + b, center.getZ() - a));
+                previewBlocks.add(new BlockPos(center.getX(), center.getY() - b, center.getZ() + a));
+                previewBlocks.add(new BlockPos(center.getX(), center.getY() - b, center.getZ() - a));
+                break;
+        }
     }
 
     // 优化后的椭球体生成方法
@@ -487,7 +489,7 @@ public class BuildShapes {
     if (radiusX <= 0 || radiusY <= 0 || radiusZ <= 0) {
         return;
     }
-    
+
     // 使用单线程替代多线程（避免线程安全问题）
     Set<BlockPos> points = new HashSet<>();
     for (int i = -radiusX; i <= radiusX; i++) {
@@ -533,7 +535,268 @@ public class BuildShapes {
     
     previewBlocks.addAll(surfacePoints);
     centerPos = center;
-}
+    }
+    
+    // 新增圆锥生成方法
+    private static void generateCone(BlockPos center, int baseRadius, int height, EntityPlayer player) {
+        previewBlocks.clear();
+        float pitch = player.rotationPitch;
+        float yaw = player.rotationYaw;
+        
+        switch (currentOrientation) {
+            case HORIZONTAL: // XZ平面圆锥
+                generateHorizontalCone(center, baseRadius, height, pitch);
+                break;
+            case VERTICAL_X: // XY平面圆锥
+                generateVerticalXCone(center, baseRadius, height, yaw);
+                break;
+            case VERTICAL_Z: // ZY平面圆锥
+                generateVerticalZCone(center, baseRadius, height, yaw);
+                break;
+        }
+        centerPos = center;
+    }
+    
+    // 水平方向圆锥生成
+    private static void generateHorizontalCone(BlockPos center, int radius, int height, float pitch) {
+        Set<BlockPos> baseCircle = new HashSet<>();
+        generateHollowCircle(center, radius, baseCircle, Orientation.HORIZONTAL);
+        
+        // 根据俯仰角确定顶点方向（抬头向上，低头向下）
+        int direction = pitch < 0 ? 1 : -1;
+        BlockPos apex = new BlockPos(
+            center.getX(),
+            center.getY() + height * direction,
+            center.getZ()
+        );
+        
+        for (BlockPos base : baseCircle) {
+            generateLine(base, apex);
+        }
+        
+        fillConeGaps(center);
+    }
+    
+    // 垂直X方向圆锥（XY平面）
+    private static void generateVerticalXCone(BlockPos center, int radius, int height, float yaw) {
+        Set<BlockPos> baseCircle = new HashSet<>();
+        generateHollowCircle(center, radius, baseCircle, Orientation.VERTICAL_X);
+        
+        // 根据水平角判断Z轴方向（正负）
+        int directionZ = 1;
+        
+        if ((yaw > -90 && yaw < 90)) {
+            directionZ = 1;
+        } else if ((yaw > 90 && yaw < 180) || 
+                  (yaw < -90 && yaw > -180)) {
+            directionZ = -1;
+        }
+        
+        BlockPos apex = new BlockPos(
+            center.getX(),
+            center.getY(),
+            center.getZ() + height * directionZ
+        );
+        
+        for (BlockPos base : baseCircle) {
+            generateLine(base, apex);
+        }
+        
+        fillConeGaps(center);
+    }
+    
+    // 垂直Z方向圆锥（ZY平面）
+    private static void generateVerticalZCone(BlockPos center, int radius, int height, float yaw) {
+        Set<BlockPos> baseCircle = new HashSet<>();
+        generateHollowCircle(center, radius, baseCircle, Orientation.VERTICAL_Z);
+        
+        // 根据水平角判断X轴方向（正负）
+        int directionX = 1;
+        
+        if ((yaw > -180 && yaw < 0)) {
+        	directionX = 1;
+        } else if ((yaw > 0 && yaw < 180)) {
+        	directionX = -1;
+        }
+        
+        BlockPos apex = new BlockPos(
+            center.getX() + height * directionX,
+            center.getY(),
+            center.getZ()
+        );
+        
+        for (BlockPos base : baseCircle) {
+            generateLine(base, apex);
+        }
+        
+        fillConeGaps(center);
+    }
+    
+    // 优化后的八分法空心圆生成方法
+    private static void generateHollowCircle(BlockPos center, int radius, Set<BlockPos> collection, Orientation orientation) {
+        int x = 0;
+        int y = radius;
+        int d = 1 - radius;
+        
+        while (y >= x) {
+            // 根据方向调用对应的八分法添加点
+            switch (orientation) {
+                case HORIZONTAL:
+                    addCirclePointsHorizontal(center, x, y, collection);
+                    break;
+                case VERTICAL_X:
+                    addCirclePointsVerticalX(center, x, y, collection);
+                    break;
+                case VERTICAL_Z:
+                    addCirclePointsVerticalZ(center, x, y, collection);
+                    break;
+            }
+            
+            x++;
+            if (d < 0) {
+                d += 2 * x + 1;
+            } else {
+                y--;
+                d += 2 * (x - y) + 1;
+            }
+        }
+    }
+    
+ // 修改后的八分法添加点方法（水平方向）
+    private static void addCirclePointsHorizontal(BlockPos center, int x, int y, Set<BlockPos> collection) {
+        collection.add(new BlockPos(center.getX() + x, center.getY(), center.getZ() + y));
+        collection.add(new BlockPos(center.getX() + x, center.getY(), center.getZ() - y));
+        collection.add(new BlockPos(center.getX() - x, center.getY(), center.getZ() + y));
+        collection.add(new BlockPos(center.getX() - x, center.getY(), center.getZ() - y));
+        collection.add(new BlockPos(center.getX() + y, center.getY(), center.getZ() + x));
+        collection.add(new BlockPos(center.getX() + y, center.getY(), center.getZ() - x));
+        collection.add(new BlockPos(center.getX() - y, center.getY(), center.getZ() + x));
+        collection.add(new BlockPos(center.getX() - y, center.getY(), center.getZ() - x));
+    }
+    
+ // 修改后的八分法添加点方法（垂直X方向）
+    private static void addCirclePointsVerticalX(BlockPos center, int x, int y, Set<BlockPos> collection) {
+        collection.add(new BlockPos(center.getX() + x, center.getY() + y, center.getZ()));
+        collection.add(new BlockPos(center.getX() + x, center.getY() - y, center.getZ()));
+        collection.add(new BlockPos(center.getX() - x, center.getY() + y, center.getZ()));
+        collection.add(new BlockPos(center.getX() - x, center.getY() - y, center.getZ()));
+        collection.add(new BlockPos(center.getX() + y, center.getY() + x, center.getZ()));
+        collection.add(new BlockPos(center.getX() + y, center.getY() - x, center.getZ()));
+        collection.add(new BlockPos(center.getX() - y, center.getY() + x, center.getZ()));
+        collection.add(new BlockPos(center.getX() - y, center.getY() - x, center.getZ()));
+    }
+
+    // 修改后的八分法添加点方法（垂直Z方向）
+    private static void addCirclePointsVerticalZ(BlockPos center, int x, int y, Set<BlockPos> collection) {
+        collection.add(new BlockPos(center.getX(), center.getY() + y, center.getZ() + x));
+        collection.add(new BlockPos(center.getX(), center.getY() + y, center.getZ() - x));
+        collection.add(new BlockPos(center.getX(), center.getY() - y, center.getZ() + x));
+        collection.add(new BlockPos(center.getX(), center.getY() - y, center.getZ() - x));
+        collection.add(new BlockPos(center.getX(), center.getY() + x, center.getZ() + y));
+        collection.add(new BlockPos(center.getX(), center.getY() + x, center.getZ() - y));
+        collection.add(new BlockPos(center.getX(), center.getY() - x, center.getZ() + y));
+        collection.add(new BlockPos(center.getX(), center.getY() - x, center.getZ() - y));
+    }
+    
+    // 新增圆锥空缺检测方法
+    private static void fillConeGaps(BlockPos center) {
+        Set<BlockPos> newPoints = new HashSet<>();
+        Set<BlockPos> surfacePoints = new HashSet<>();
+        Set<BlockPos> originalPoints = new HashSet<>(previewBlocks);
+        
+        // 获取中心点坐标
+        int centerX = center.getX();
+        int centerZ = center.getZ();
+
+        for (BlockPos pos : originalPoints) {
+            newPoints.add(pos);
+
+            // 根据坐标差判断方向
+            boolean eastValid = pos.getX() < centerX;  // 东方向新增点是否朝向中心
+            boolean westValid = pos.getX() > centerX;  // 西方向新增点是否朝向中心
+            boolean northValid = pos.getZ() > centerZ;  // 北方向新增点是否朝向中心
+            boolean southValid = pos.getZ() < centerZ;  // 南方向新增点是否朝向中心
+            
+            // 只添加朝向中心的新点
+            if (eastValid) newPoints.add(pos.east());
+            if (westValid) newPoints.add(pos.west());
+            if (northValid) newPoints.add(pos.north());
+            if (southValid) newPoints.add(pos.south());
+        }
+
+        for (BlockPos pos : newPoints) {
+            boolean isSurface = false;
+            
+            // 检查六个方向是否有空缺
+            if (!newPoints.contains(pos.east())) isSurface = true;
+            else if (!newPoints.contains(pos.west())) isSurface = true;
+            else if (!newPoints.contains(pos.up())) isSurface = true;
+            else if (!newPoints.contains(pos.down())) isSurface = true;
+            else if (!newPoints.contains(pos.north())) isSurface = true;
+            else if (!newPoints.contains(pos.south())) isSurface = true;
+
+            if (isSurface) {
+                surfacePoints.add(pos);
+            }
+        }
+        
+        previewBlocks.clear();
+        previewBlocks.addAll(surfacePoints);
+    }
+    
+    // Bresenham三维直线算法
+    private static void generateLine(BlockPos start, BlockPos end) {
+        int x1 = start.getX(), y1 = start.getY(), z1 = start.getZ();
+        int x2 = end.getX(), y2 = end.getY(), z2 = end.getZ();
+        
+        int dx = Math.abs(x2 - x1);
+        int dy = Math.abs(y2 - y1);
+        int dz = Math.abs(z2 - z1);
+        
+        int xs = x2 > x1 ? 1 : -1;
+        int ys = y2 > y1 ? 1 : -1;
+        int zs = z2 > z1 ? 1 : -1;
+
+        // 主导轴判断逻辑
+        if (dx >= dy && dx >= dz) {
+            // X轴主导的直线生成逻辑
+            int p1 = 2*dy - dx;
+            int p2 = 2*dz - dx;
+            while (x1 != x2) {
+                previewBlocks.add(new BlockPos(x1, y1, z1));
+                x1 += xs;
+                if (p1 >= 0) { y1 += ys; p1 -= 2*dx; }
+                if (p2 >= 0) { z1 += zs; p2 -= 2*dx; }
+                p1 += 2*dy;
+                p2 += 2*dz;
+            }
+        } else if (dy >= dx && dy >= dz) {
+            // Y轴主导的直线生成逻辑
+            int p1 = 2*dx - dy;
+            int p2 = 2*dz - dy;
+            while (y1 != y2) {
+                previewBlocks.add(new BlockPos(x1, y1, z1));
+                y1 += ys;
+                if (p1 >= 0) { x1 += xs; p1 -= 2*dy; }
+                if (p2 >= 0) { z1 += zs; p2 -= 2*dy; }
+                p1 += 2*dx;
+                p2 += 2*dz;
+            }
+        } else {
+            // Z轴主导的直线生成逻辑
+            int p1 = 2*dx - dz;
+            int p2 = 2*dy - dz;
+            while (z1 != z2) {
+                previewBlocks.add(new BlockPos(x1, y1, z1));
+                z1 += zs;
+                if (p1 >= 0) { x1 += xs; p1 -= 2*dz; }
+                if (p2 >= 0) { y1 += ys; p2 -= 2*dz; }
+                p1 += 2*dx;
+                p2 += 2*dy;
+            }
+        }
+        previewBlocks.add(new BlockPos(x2, y2, z2));
+    }
 
     public static class ShapeCommand extends CommandBase {
         @Override
@@ -680,13 +943,39 @@ public class BuildShapes {
                         generateEllipsoid(pos, radiusX1, radiusY1, radiusZ1);
                         break;
 
+                    case "line":
+                        if (args.length < 3) {
+                            player.sendMessage(new TextComponentString("用法: /shape line <x1,y1,z1> <x2,y2,z2>"));
+                            return;
+                        }
+                        try {
+                            BlockPos start = parseAbsoluteBlockPos(args[1]);
+                            BlockPos end = parseAbsoluteBlockPos(args[2]);
+                            generateLine(start, end);
+                            centerPos = start; // 设置中心点为起点
+                        } catch (NumberFormatException e) {
+                            player.sendMessage(new TextComponentString(TextFormatting.RED + "坐标格式错误！使用 绝对坐标x,y,z 格式"));
+                        }
+                        break;
+
+                    case "cone":
+                        if (args.length < 3) {
+                            player.sendMessage(new TextComponentString("用法: /shape cone <半径> <高度>"));
+                            return;
+                        }
+                        int baseRadius = Integer.parseInt(args[1]);
+                        int height = Integer.parseInt(args[2]);
+                        generateCone(pos, baseRadius, height, player);
+                        break;
+
                     default:
                         sendHelpMessage(player);
                         return;
                 }
 
                 player.sendMessage(new TextComponentString(
-                    TextFormatting.GREEN + "形状预览已生成！使用 /shape preview <all|layer|below> 切换预览模式"
+                    TextFormatting.GREEN + "形状预览已生成！\n" +
+                    TextFormatting.YELLOW + "使用 /shape preview <all|layer|below> 切换预览模式"
                 ));
 
             } catch (NumberFormatException e) {
@@ -696,8 +985,20 @@ public class BuildShapes {
             }
         }
 
+        // 新增坐标解析方法
+        private static BlockPos parseAbsoluteBlockPos(String coordStr) {
+            String[] parts = coordStr.split(",");
+            if (parts.length != 3) throw new NumberFormatException();
+            
+            return new BlockPos(
+                Integer.parseInt(parts[0].trim()),
+                Integer.parseInt(parts[1].trim()),
+                Integer.parseInt(parts[2].trim())
+            );
+        }
+        
         private void sendDetailedHelpMessage(EntityPlayer player, int page) {
-            int maxPage = 3; // 总页数
+            int maxPage = 4; // 总页数
             if (page < 1 || page > maxPage) {
                 player.sendMessage(new TextComponentString(
                     TextFormatting.RED + "无效的页码！页码范围：1-" + maxPage
@@ -705,19 +1006,16 @@ public class BuildShapes {
                 return;
             }
 
-            String header = TextFormatting.GOLD + "=== 建筑形状生成器指令帮助 === " + 
+            String header = TextFormatting.GOLD + "\n === 建筑形状生成器指令帮助 === \n" + 
                         TextFormatting.GRAY + "[第" + page + "页，共" + maxPage + "页]\n" +
-                        TextFormatting.YELLOW + "使用 /shape help <页码> 查看其他页面\n\n" +
-                        TextFormatting.GRAY + "1. 所有形状都以玩家当前位置为中心点生成\n" +
-                        TextFormatting.GRAY + "2. 预览使用蓝色半透明边框显示\n" +
-                        TextFormatting.GRAY + "3. 只显示空气方块处的预览\n" +
-                        TextFormatting.GRAY + "4. 生成新形状时会自动清除旧预览\n" +
-                        TextFormatting.GRAY + "5. 建议先用preview layer模式确认每层位置\n\n";
+                        TextFormatting.YELLOW + "使用 /shape help <页码> 查看其他页面\n" +
+                        TextFormatting.YELLOW + "╰(*°▽°*)╯最后一页有小Tip\n\n";
+
 
             String content = "";
             switch (page) {
                 case 1:
-                    content = TextFormatting.YELLOW + "基础形状命令：\n" +
+                    content = TextFormatting.YELLOW + "基础形状命令(1/2)：\n" +
                         TextFormatting.WHITE + "/shape circle <半径>\n" +
                         TextFormatting.GRAY + "  生成一个圆形预览\n" +
                         TextFormatting.GRAY + "  - 半径：圆的大小（方块数）\n" +
@@ -732,8 +1030,8 @@ public class BuildShapes {
                         TextFormatting.GRAY + "  生成一个椭圆预览\n" +
                         TextFormatting.GRAY + "  - X半径：椭圆X轴方向的大小\n" +
                         TextFormatting.GRAY + "  - Z半径：椭圆Z轴方向的大小\n" +
-                        TextFormatting.GRAY + "  示例：/shape ellipse 10 5\n\\n"+
-                        
+                        TextFormatting.GRAY + "  示例：/shape ellipse 10 5\n\n"+
+
                         TextFormatting.WHITE + "/shape ellipsoid <X半径> <Y半径> <Z半径>\n" +
                         TextFormatting.GRAY + "  生成一个椭圆体预览\n" +
                         TextFormatting.GRAY + "  - X半径：椭圆体X轴方向的大小\n" +
@@ -743,7 +1041,20 @@ public class BuildShapes {
                 break;
 
                 case 2:
-                    content = TextFormatting.YELLOW + "预览控制命令：\n" +
+                    content = TextFormatting.YELLOW + "基础形状命令(2/2)：\n" +
+                        TextFormatting.WHITE + "/shape cone <半径> <高度>\n" +
+                        TextFormatting.GRAY + "  智能方向圆锥：\n" +
+                        TextFormatting.GRAY + "  - 抬头/平视：水平方向（随水平视角旋转）\n" +
+                        TextFormatting.GRAY + "  - 抬头超过45度：垂直向上\n" +
+                        TextFormatting.GRAY + "  - 低头超过45度：垂直向下\n\n" +
+                        
+                        TextFormatting.WHITE + "/shape line <起点> <终点>\n" +
+                        TextFormatting.GRAY + "  生成绝对坐标间的直线\n" +
+                        TextFormatting.GRAY + "  示例：/shape line 100,64,200 120,70,180\n\n";
+                    break;
+
+                case 3:
+                    content = TextFormatting.YELLOW + "预览控制命令(1/1)：\n" +
                         TextFormatting.WHITE + "/shape preview all\n" +
                         TextFormatting.GRAY + "  显示形状的所有层级预览\n" +
                         TextFormatting.GRAY + "  适用于观察整体形状\n\n" +
@@ -760,15 +1071,21 @@ public class BuildShapes {
                         TextFormatting.GRAY + "  清除所有预览效果";
                     break;
 
-                case 3:
-                    content = TextFormatting.YELLOW + "方向控制命令：\n" +
+                case 4:
+                    content = TextFormatting.YELLOW + "方向控制命令(1/1)：\n" +
                         TextFormatting.WHITE + "/shape orientation <方向>\n" +
                         TextFormatting.GRAY + "  设置平面图形的方向\n" +
                         TextFormatting.GRAY + "  可用的方向：\n" +
                         TextFormatting.GRAY + "  - horizontal: 水平面 (XZ平面)\n" +
                         TextFormatting.GRAY + "  - vertical_x: 垂直X面 (XY平面)\n" +
                         TextFormatting.GRAY + "  - vertical_z: 垂直Z面 (ZY平面)\n" +
-                        TextFormatting.GRAY + "  示例：/shape orientation vertical_x";
+                        TextFormatting.GRAY + "  示例：/shape orientation vertical_x" +
+                        
+                        TextFormatting.GRAY + "1. 所有形状都以玩家当前位置为中心点生成\n" +
+                        TextFormatting.GRAY + "2. 预览使用蓝色半透明边框显示\n" +
+                        TextFormatting.GRAY + "3. 只显示空气方块处的预览\n" +
+                        TextFormatting.GRAY + "4. 生成新形状时会自动清除旧预览(线条除外)\n" +
+                        TextFormatting.GRAY + "5. 建议先用preview layer模式确认每层位置\n\n";
                     break;
             }
 
@@ -780,10 +1097,14 @@ public class BuildShapes {
                 TextFormatting.GOLD + "=== 建筑形状生成器 ===\n" +
                 TextFormatting.YELLOW + "输入 /shape help 查看详细帮助\n\n" +
                 TextFormatting.WHITE + "常用命令：\n" +
+                
                 TextFormatting.GRAY + "/shape circle <半径>\n" +
                 TextFormatting.GRAY + "/shape sphere <半径>\n" +
                 TextFormatting.GRAY + "/shape ellipse <X半径> <Z半径>\n" +
                 TextFormatting.GRAY + "/shape ellipsoid <X半径> <Y半径> <Z半径>\n" +
+                TextFormatting.GRAY + "/shape cone <底部半径> <高度>\n" +
+                TextFormatting.GRAY + "/shape line <起点> <终点>\n" +
+                
                 TextFormatting.GRAY + "/shape preview <all|layer|below>\n" +
                 TextFormatting.GRAY + "/shape orientation <方向>\n" +
                 TextFormatting.GRAY + "/shape clear\n\n" +
