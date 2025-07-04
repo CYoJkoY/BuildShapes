@@ -1,0 +1,3 @@
+Manifest-Version: 1.0
+FMLCorePlugin: com.movemodify.movemodifymod.MoveModifyCoremod
+FMLCorePluginContainsFMLMod: true
